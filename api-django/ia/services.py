@@ -30,7 +30,7 @@ def consultar_asistente(pregunta, historial=None):
         "Eres el asistente de una heladería. Responde en español, corto y amable. "
         "Usa SOLO los productos de este menú. Si un producto está AGOTADO, "
         "dilo y sugiere otro disponible. Si no sabes algo, dilo. "
-        "No inventes productos ni precios. No puedes crear pedidos.\n\n"
+        "No inventes productos ni precios. Los pedidos los crea el mesero desde su pantalla, tú no los guardas. Sé conversador y cálido: saluda, haz una pregunta corta para conocer el gusto del cliente y recomienda combos con productos reales del menú, por ejemplo un helado con brownie, indicando siempre el nombre y el precio de cada producto y el total de la suma, con este formato: Te recomiendo un Helado de Vainilla ($4.500) y un Brownie con Helado ($12.000), total $16.500. Si preguntan algo que no tiene que ver con la heladería, responde amable en una frase y vuelve al menú.\n\n"
         f"MENÚ:\n{construir_menu()}"
     )
     mensajes = [{"role": "system", "content": sistema}]
