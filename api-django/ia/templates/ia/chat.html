@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heladería - Asistente</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #fff5f8; margin: 0; }
+    header { background: #e84a8a; color: white; padding: 16px 24px; }
+    header h1 { margin: 0; font-size: 22px; }
+    main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+    .tarjeta { background: white; padding: 24px; border-radius: 12px;
+               box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    #pantalla-login { max-width: 420px; margin: 40px auto; }
+    label { display: block; margin-top: 12px; font-weight: bold; }
+    input[type=text], input[type=password] { width: 100%; padding: 10px; margin-top: 4px;
+            box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+    button { padding: 10px 16px; background: #e84a8a; color: white; border: none;
+             border-radius: 6px; cursor: pointer; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    button.secundario { background: #888; }
+    #btn-entrar { margin-top: 16px; }
+    #error { color: #c00; margin-top: 12px; }
+    .oculto { display: none; }
+    #contenido { display: flex; gap: 16px; align-items: flex-start; }
+    #contenido #pantalla-chat { flex: 2; }
+    #menu { flex: 1; }
+    #menu h3 { margin-top: 0; }
+    #menu ul { list-style: none; padding: 0; margin: 0; }
+    #menu li { padding: 8px 0; border-bottom: 1px solid #eee; }
+    #menu .precio { color: #e84a8a; font-weight: bold; }
+    #menu .agotado { color: #999; text-decoration: line-through; }
+    .barra { display: flex; justify-content: space-between; align-items: center;
+             margin-bottom: 12px; }
+    .barra .acciones button { margin-left: 8px; }
+    #mensajes { height: 380px; overflow-y: auto; border: 1px solid #eee;
+                border-radius: 8px; padding: 12px; background: #fafafa; }
+    .msg { max-width: 80%; padding: 10px 14px; margin: 8px 0; border-radius: 12px;
+           white-space: pre-wrap; line-height: 1.4; }
+    .msg.user { background: #e84a8a; color: white; margin-left: auto; }
+    .msg.assistant { background: #ffe3ee; color: #222; margin-right: auto; }
+    .msg.sistema { background: #eee; color: #555; font-size: 14px; margin-right: auto; }
+    .entrada { display: flex; gap: 8px; margin-top: 12px; }
+    .entrada input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <header><h1>🍦 Heladería - Asistente</h1></header>
+  <main>
+    <div id="contenido">
+      <div id="pantalla-login" class="tarjeta">
+        <h2>Iniciar sesión</h2>
+        <label for="usuario">Usuario</label>
+        <input id="usuario" type="text" autocomplete="username">
+        <label for="clave">Contraseña</label>
+        <input id="clave" type="password" autocomplete="current-password">
+        <button id="btn-entrar">Entrar</button>
+        <div id="error"></div>
+      </div>
+      <div id="pantalla-chat" class="tarjeta oculto">
+        <div class="barra">
+          <strong id="saludo"></strong>
+          <div class="acciones">
+            <button id="btn-nueva" class="secundario">Nueva conversación</button>
+            <button id="btn-salir" class="secundario">Cerrar sesión</button>
+          </div>
+        </div>
+        <div id="mensajes"></div>
+        <div class="entrada">
+          <input id="pregunta" type="text" maxlength="500" placeholder="Pregunta por sabores, precios, disponibilidad...">
+          <button id="btn-enviar">Enviar</button>
+        </div>
+      </div>
+      <div id="menu" class="tarjeta oculto">
+        <h3>🍨 Menú</h3>
+        <ul id="lista-menu"></ul>
+      </div>
+    </div>
+  </main>
+  <script>
+    const pantallaLogin = document.getElementById("pantalla-login");
+    const pantallaChat = document.getElementById("pantalla-chat");
+    const errorDiv = document.getElementById("error");
+    const cajaMensajes = document.getElementById("mensajes");
+    const inputPregunta = document.getElementById("pregunta");
+    const btnEnviar = document.getElementById("btn-enviar");
+    let conversacionId = null;
+
+    function agregarMensaje(clase, texto) {
+      const div = document.createElement("div");
+      div.className = "msg " + clase;
+      div.textContent = texto;
+      cajaMensajes.appendChild(div);
+      cajaMensajes.scrollTop = cajaMensajes.scrollHeight;
+      return div;
+    }
+
+    function reiniciarChat() {
+      conversacionId = null;
+      cajaMensajes.innerHTML = "";
+      agregarMensaje("sistema", "Hola 👋 Soy el asistente de la heladería. Pregúntame por los sabores, precios o disponibilidad.");
+    }
+
+    async function cargarMenu() {
+      try {
+        const r = await fetch("/api/productos/", {
+          headers: { "Authorization": "Bearer " + sessionStorage.getItem("token") },
+        });
+        if (!r.ok) return;
+        const productos = await r.json();
+        const lista = document.getElementById("lista-menu");
+        lista.innerHTML = "";
+        productos.forEach(function (p) {
+          const li = document.createElement("li");
+          const nombre = document.createElement("div");
+          nombre.textContent = p.nombre + " (" + p.categoria + ")";
+          const precio = document.createElement("span");
+          precio.className = "precio";
+          precio.textContent = "$" + Number(p.precio).toLocaleString("es-CO");
+          if (!p.disponible) {
+            nombre.className = "agotado";
+            precio.textContent += " · agotado";
+          }
+          li.appendChild(nombre);
+          li.appendChild(precio);
+          lista.appendChild(li);
+        });
+        document.getElementById("menu").classList.remove("oculto");
+      } catch (e) {}
+    }
+
+    function mostrarChat(usuario) {
+      document.getElementById("saludo").textContent = "Hola, " + usuario;
+      pantallaLogin.classList.add("oculto");
+      pantallaChat.classList.remove("oculto");
+      reiniciarChat();
+      cargarMenu();
+      inputPregunta.focus();
+    }
+
+    function mostrarLogin(mensaje) {
+      pantallaChat.classList.add("oculto");
+      document.getElementById("menu").classList.add("oculto");
+      pantallaLogin.classList.remove("oculto");
+      errorDiv.textContent = mensaje || "";
+    }
+
+    async function entrar() {
+      errorDiv.textContent = "";
+      const usuario = document.getElementById("usuario").value.trim();
+      const clave = document.getElementById("clave").value;
+      try {
+        const r = await fetch("/api/auth/token/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: usuario, password: clave }),
+        });
+        if (!r.ok) {
+          errorDiv.textContent = "Usuario o contraseña incorrectos.";
+          return;
+        }
+        const datos = await r.json();
+        sessionStorage.setItem("token", datos.access);
+        sessionStorage.setItem("usuario", usuario);
+        document.getElementById("clave").value = "";
+        mostrarChat(usuario);
+      } catch (e) {
+        errorDiv.textContent = "No se pudo conectar con el servidor.";
+      }
+    }
+
+    function salir() {
+      sessionStorage.clear();
+      mostrarLogin();
+    }
+
+    async function enviar() {
+      const pregunta = inputPregunta.value.trim();
+      if (!pregunta) return;
+      agregarMensaje("user", pregunta);
+      inputPregunta.value = "";
+      btnEnviar.disabled = true;
+      const espera = agregarMensaje("sistema", "Escribiendo...");
+      const cuerpo = { pregunta: pregunta };
+      if (conversacionId) cuerpo.conversacion_id = conversacionId;
+      try {
+        const r = await fetch("/api/ia/asistente/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + sessionStorage.getItem("token"),
+          },
+          body: JSON.stringify(cuerpo),
+        });
+        if (r.status === 401) {
+          sessionStorage.clear();
+          mostrarLogin("Tu sesión expiró. Inicia sesión de nuevo.");
+          return;
+        }
+        const datos = await r.json();
+        espera.remove();
+        if (!r.ok) {
+          agregarMensaje("sistema", datos.error || "Ocurrió un error. Intenta de nuevo.");
+        } else {
+          conversacionId = datos.conversacion_id;
+          agregarMensaje("assistant", datos.respuesta);
+        }
+      } catch (e) {
+        espera.remove();
+        agregarMensaje("sistema", "No se pudo conectar con el servidor.");
+      } finally {
+        btnEnviar.disabled = false;
+        inputPregunta.focus();
+      }
+    }
+
+    document.getElementById("btn-entrar").addEventListener("click", entrar);
+    document.getElementById("btn-salir").addEventListener("click", salir);
+    document.getElementById("btn-nueva").addEventListener("click", reiniciarChat);
+    btnEnviar.addEventListener("click", enviar);
+    inputPregunta.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") enviar();
+    });
+    document.getElementById("clave").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") entrar();
+    });
+
+    if (sessionStorage.getItem("token")) {
+      mostrarChat(sessionStorage.getItem("usuario"));
+    }
+  </script>
+</body>
+</html>
