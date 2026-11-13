@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesero - Heladería</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #fff5f8; margin: 0; }
+  header { background: #e84a8a; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; font-size: 22px; }
+  header a { color: white; margin-left: 16px; }
+  main { max-width: 900px; margin: 24px auto; padding: 0 16px; display: flex; gap: 16px; align-items: flex-start; }
+  .tarjeta { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  #izq { flex: 2; }
+  #der { flex: 1; }
+  select { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; }
+  .fila { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+  .precio { color: #e84a8a; font-weight: bold; }
+  button { background: #e84a8a; color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button.gris { background: #888; }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  #enviar { width: 100%; margin-top: 12px; padding: 12px; }
+  #aviso { margin-top: 12px; font-weight: bold; }
+  .ok { color: #0a7a2f; }
+  .mal { color: #c00; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🍦 Mesero</h1>
+  <div><a href="/cocina/">Cocina</a><a href="/chat/">Asistente</a></div>
+</header>
+<main>
+  <div id="izq" class="tarjeta">
+    <h3>1. Elige la mesa</h3>
+    <select id="mesa"></select>
+    <h3>2. Agrega productos</h3>
+    <div id="productos"></div>
+  </div>
+  <div id="der" class="tarjeta">
+    <h3>Pedido</h3>
+    <div id="carrito">Sin productos</div>
+    <p>Total: <span id="total" class="precio">$0</span></p>
+    <button id="enviar" disabled>Enviar a cocina</button>
+    <div id="aviso"></div>
+  </div>
+</main>
+<script>
+  const token = localStorage.getItem("token");
+  if (!token) { location.href = "/chat/"; }
+  const H = { "Authorization": "Bearer " + token, "Content-Type": "application/json" };
+  let productos = [];
+  let cantidades = {};
+
+  function dinero(n) { return "$" + Number(n).toLocaleString("es-CO"); }
+
+  async function api(url, opciones) {
+    const r = await fetch(url, Object.assign({ headers: H }, opciones || {}));
+    if (r.status === 401) { localStorage.clear(); location.href = "/chat/"; throw new Error("401"); }
+    return r;
+  }
+
+  async function cargarMesas() {
+    const mesas = await (await api("/api/mesas/")).json();
+    const sel = document.getElementById("mesa");
+    const actual = sel.value;
+    sel.innerHTML = "";
+    mesas.forEach(function (m) {
+      const op = document.createElement("option");
+      op.value = m.id_mesa;
+      op.textContent = "Mesa " + m.numero + " (" + m.estado + ")";
+      sel.appendChild(op);
+    });
+    if (actual) sel.value = actual;
+  }
+
+  async function cargarProductos() {
+    const todos = await (await api("/api/productos/")).json();
+    productos = todos.filter(function (p) { return p.disponible; });
+    dibujarProductos();
+  }
+
+  function dibujarProductos() {
+    const caja = document.getElementById("productos");
+    caja.innerHTML = "";
+    productos.forEach(function (p) {
+      const fila = document.createElement("div");
+      fila.className = "fila";
+      const info = document.createElement("div");
+      info.textContent = p.nombre + " ";
+      const pr = document.createElement("span");
+      pr.className = "precio";
+      pr.textContent = dinero(p.precio);
+      info.appendChild(pr);
+      const b = document.createElement("button");
+      b.textContent = "+ Agregar";
+      b.onclick = function () {
+        cantidades[p.id_producto] = (cantidades[p.id_producto] || 0) + 1;
+        dibujarCarrito();
+      };
+      fila.appendChild(info);
+      fila.appendChild(b);
+      caja.appendChild(fila);
+    });
+  }
+
+  function dibujarCarrito() {
+    const caja = document.getElementById("carrito");
+    caja.innerHTML = "";
+    let total = 0, items = 0;
+    productos.forEach(function (p) {
+      const c = cantidades[p.id_producto] || 0;
+      if (!c) return;
+      items += c;
+      total += c * Number(p.precio);
+      const fila = document.createElement("div");
+      fila.className = "fila";
+      const t = document.createElement("span");
+      t.textContent = c + " x " + p.nombre;
+      const q = document.createElement("button");
+      q.className = "gris";
+      q.textContent = "Quitar";
+      q.onclick = function () { cantidades[p.id_producto] = c - 1; dibujarCarrito(); };
+      fila.appendChild(t);
+      fila.appendChild(q);
+      caja.appendChild(fila);
+    });
+    if (!items) caja.textContent = "Sin productos";
+    document.getElementById("total").textContent = dinero(total);
+    document.getElementById("enviar").disabled = !items;
+  }
+
+  async function enviar() {
+    const aviso = document.getElementById("aviso");
+    const boton = document.getElementById("enviar");
+    const lista = Object.keys(cantidades)
+      .filter(function (id) { return cantidades[id] > 0; })
+      .map(function (id) { return { producto: Number(id), cantidad: cantidades[id] }; });
+    boton.disabled = true;
+    const r = await api("/api/pedidos/", {
+      method: "POST",
+      body: JSON.stringify({ mesa: Number(document.getElementById("mesa").value), productos: lista }),
+    });
+    const datos = await r.json();
+    if (r.ok) {
+      aviso.className = "ok";
+      aviso.textContent = "Pedido #" + datos.id_pedido + " enviado a cocina. Total " + dinero(datos.total);
+      cantidades = {};
+      dibujarCarrito();
+      cargarMesas();
+    } else {
+      aviso.className = "mal";
+      aviso.textContent = JSON.stringify(datos);
+      boton.disabled = false;
+    }
+  }
+
+  if (token) {
+    document.getElementById("enviar").addEventListener("click", enviar);
+    cargarMesas();
+    cargarProductos();
+  }
+</script>
+</body>
+</html>

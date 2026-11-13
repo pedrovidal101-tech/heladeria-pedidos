@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Heladería - Asistente</title>
@@ -104,7 +105,7 @@
     async function cargarMenu() {
       try {
         const r = await fetch("/api/productos/", {
-          headers: { "Authorization": "Bearer " + sessionStorage.getItem("token") },
+          headers: { "Authorization": "Bearer " + localStorage.getItem("token") },
         });
         if (!r.ok) return;
         const productos = await r.json();
@@ -160,8 +161,8 @@
           return;
         }
         const datos = await r.json();
-        sessionStorage.setItem("token", datos.access);
-        sessionStorage.setItem("usuario", usuario);
+        localStorage.setItem("token", datos.access);
+        localStorage.setItem("usuario", usuario);
         document.getElementById("clave").value = "";
         mostrarChat(usuario);
       } catch (e) {
@@ -170,7 +171,7 @@
     }
 
     function salir() {
-      sessionStorage.clear();
+      localStorage.clear();
       mostrarLogin();
     }
 
@@ -188,12 +189,12 @@
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": "Bearer " + sessionStorage.getItem("token"),
+            "Authorization": "Bearer " + localStorage.getItem("token"),
           },
           body: JSON.stringify(cuerpo),
         });
         if (r.status === 401) {
-          sessionStorage.clear();
+          localStorage.clear();
           mostrarLogin("Tu sesión expiró. Inicia sesión de nuevo.");
           return;
         }
@@ -225,8 +226,8 @@
       if (e.key === "Enter") entrar();
     });
 
-    if (sessionStorage.getItem("token")) {
-      mostrarChat(sessionStorage.getItem("usuario"));
+    if (localStorage.getItem("token")) {
+      mostrarChat(localStorage.getItem("usuario"));
     }
   </script>
 </body>

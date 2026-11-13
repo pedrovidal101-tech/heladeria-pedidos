@@ -15,5 +15,6 @@ urlpatterns = [
     path('api/ia/', include('ia.urls')),
     path('chat/', TemplateView.as_view(template_name='ia/chat.html')),
     
-    
+    path('mesero/', TemplateView.as_view(template_name='ia/mesero.html')),
+    path('cocina/', TemplateView.as_view(template_name='ia/cocina.html')),
 ]
