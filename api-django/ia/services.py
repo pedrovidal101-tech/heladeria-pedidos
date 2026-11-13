@@ -1,3 +1,4 @@
+import json
 import requests
 from django.conf import settings
 from pedidos.models import Producto
@@ -48,3 +49,52 @@ def consultar_asistente(pregunta, historial=None):
         return r.json()["message"]["content"]
     except requests.exceptions.RequestException as e:
         raise ErrorIA(f"No se pudo contactar a Ollama: {e}")
+    
+    
+    import json
+
+
+def interpretar_pedido(texto):
+    """Convierte lo que dicta el mesero en una lista de productos validada."""
+    cfg = settings.OLLAMA_CONFIG
+    productos = list(Producto.objects.filter(disponible=True))
+    menu = "\n".join(f"{p.id_producto}: {p.nombre}" for p in productos)
+    sistema = (
+        "Conviertes pedidos de una heladería en JSON. "
+        "Usa SOLO los productos de esta lista (id: nombre):\n"
+        f"{menu}\n\n"
+        'Responde SOLO con JSON así: {"items": [{"producto": 1, "cantidad": 2}]}. '
+        'Si el texto no pide ningún producto de la lista, responde {"items": []}.'
+    )
+    payload = {
+        "model": cfg["MODEL"],
+        "stream": False,
+        "format": "json",
+        "messages": [
+            {"role": "system", "content": sistema},
+            {"role": "user", "content": texto},
+        ],
+    }
+    try:
+        r = requests.post(cfg["URL"], json=payload, timeout=cfg["TIMEOUT"])
+        r.raise_for_status()
+        datos = json.loads(r.json()["message"]["content"])
+    except requests.exceptions.RequestException as e:
+        raise ErrorIA(f"No se pudo contactar a Ollama: {e}")
+    except (ValueError, KeyError):
+        raise ErrorIA("La IA no devolvió un pedido válido.")
+
+    por_id = {p.id_producto: p for p in productos}
+    crudos = datos.get("items", []) if isinstance(datos, dict) else []
+    items = []
+    for it in crudos if isinstance(crudos, list) else []:
+        try:
+            pid = int(it.get("producto"))
+            cantidad = int(it.get("cantidad", 1))
+        except (ValueError, TypeError, AttributeError):
+            continue
+        if pid in por_id and 1 <= cantidad <= 20:
+            items.append(
+                {"producto": pid, "nombre": por_id[pid].nombre, "cantidad": cantidad}
+            )
+    return items

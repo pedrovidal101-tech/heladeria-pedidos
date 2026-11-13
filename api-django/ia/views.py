@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Conversacion, Mensaje
-from .services import consultar_asistente, ErrorIA
+from .services import consultar_asistente, ErrorIA, interpretar_pedido
 
 MAX_HISTORIAL = 10
 
@@ -56,6 +56,21 @@ class AsistenteView(APIView):
         )
 
         return Response({"conversacion_id": conversacion.id, "respuesta": respuesta})
+
+
+class PedidoAsistenteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PreguntaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            items = interpretar_pedido(serializer.validated_data["pregunta"])
+        except ErrorIA as e:
+            return Response(
+                {"error": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        return Response({"items": items})
 
 
 class ConversacionesView(APIView):

@@ -36,6 +36,10 @@
     <select id="mesa"></select>
     <h3>2. Agrega productos</h3>
     <div id="productos"></div>
+    <h3>O dicta el pedido a la IA</h3>
+    <textarea id="dictado" rows="2" placeholder="Ej: 2 de vainilla y un brownie" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;"></textarea>
+    <button id="armar" style="margin-top:8px;">Armar con IA</button>
+    <div id="avisoIA" style="margin-top:8px;font-weight:bold;"></div>
   </div>
   <div id="der" class="tarjeta">
     <h3>Pedido</h3>
@@ -155,11 +159,54 @@
     }
   }
 
+  async function armarConIA() {
+    const aviso = document.getElementById("avisoIA");
+    const texto = document.getElementById("dictado").value.trim();
+    if (!texto) { aviso.className = "mal"; aviso.textContent = "Escribe el pedido primero."; return; }
+    const boton = document.getElementById("armar");
+    boton.disabled = true;
+    aviso.className = "";
+    aviso.textContent = "Armando pedido...";
+    try {
+      const r = await api("/api/ia/asistente/pedido/", {
+        method: "POST",
+        body: JSON.stringify({ pregunta: texto }),
+      });
+      const datos = await r.json();
+      if (!r.ok) {
+        aviso.className = "mal";
+        aviso.textContent = datos.error || JSON.stringify(datos);
+      } else if (!datos.items.length) {
+        aviso.className = "mal";
+        aviso.textContent = "No entendí ningún producto del menú.";
+      } else {
+        datos.items.forEach(function (it) {
+          cantidades[it.producto] =
+
+       (cantidades[it.producto] || 0) + it.cantidad;
+        });
+        dibujarCarrito();
+        aviso.className = "ok";
+        aviso.textContent = "Revisa el pedido de la derecha y presiona Enviar a cocina.";
+        document.getElementById("dictado").value = "";
+      }
+    } catch (e) {
+      aviso.className = "mal";
+      aviso.textContent = "Error al contactar la IA.";
+    }
+    boton.disabled = false;
+  }
+
   if (token) {
     document.getElementById("enviar").addEventListener("click", enviar);
+    document.getElementById("armar").addEventListener("click", armarConIA);
     cargarMesas();
     cargarProductos();
   }
 </script>
 </body>
 </html>
+
+
+
+          
