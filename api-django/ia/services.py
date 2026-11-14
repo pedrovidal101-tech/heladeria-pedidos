@@ -1,4 +1,5 @@
 import json
+
 import requests
 from django.conf import settings
 from pedidos.models import Producto
@@ -20,6 +21,20 @@ def construir_menu():
     return "\n".join(lineas) if lineas else "No hay productos registrados."
 
 
+def construir_contexto_semantico(pregunta):
+    """Productos relacionados por significado (ChromaDB).
+    Si falla, el asistente sigue funcionando solo con el menú."""
+    try:
+        from ia.semantica import buscar_productos
+
+        productos = buscar_productos(pregunta, cantidad=3)
+    except Exception:
+        return "No disponible."
+    if not productos:
+        return "Sin coincidencias."
+    return "\n".join(f"- {p.nombre} ({p.categoria})" for p in productos)
+
+
 def consultar_asistente(pregunta, historial=None):
     """
     historial: lista de mensajes anteriores, cada uno como
@@ -30,8 +45,18 @@ def consultar_asistente(pregunta, historial=None):
         "Eres el asistente de una heladería. Responde en español, corto y amable. "
         "Usa SOLO los productos de este menú. Si un producto está AGOTADO, "
         "dilo y sugiere otro disponible. Si no sabes algo, dilo. "
-        "No inventes productos ni precios. Los pedidos los crea el mesero desde su pantalla, tú no los guardas. Sé conversador y cálido: saluda, haz una pregunta corta para conocer el gusto del cliente y recomienda combos con productos reales del menú, por ejemplo un helado con brownie, indicando siempre el nombre y el precio de cada producto y el total de la suma, con este formato: Te recomiendo un Helado de Vainilla ($4.500) y un Brownie con Helado ($12.000), total $16.500. Si preguntan algo que no tiene que ver con la heladería, responde amable en una frase y vuelve al menú.\n\n"
-        f"MENÚ:\n{construir_menu()}"
+        "No inventes productos ni precios. Los pedidos los crea el mesero desde su "
+        "pantalla, tú no los guardas. Sé conversador y cálido: saluda, haz una "
+        "pregunta corta para conocer el gusto del cliente y recomienda combos con "
+        "productos reales del menú, por ejemplo un helado con brownie, indicando "
+        "siempre el nombre y el precio de cada producto y el total de la suma, con "
+        "este formato: Te recomiendo un Helado de Vainilla ($4.500) y un Brownie con "
+        "Helado ($12.000), total $16.500. Si preguntan algo que no tiene que ver con "
+        "la heladería, responde amable en una frase y vuelve al menú. Los productos "
+        "relacionados son sugerencias por significado: confirma que estén en el menú "
+        "y no los uses para saber la disponibilidad.\n\n"
+        f"MENÚ:\n{construir_menu()}\n\n"
+        f"PRODUCTOS RELACIONADOS CON LA PREGUNTA:\n{construir_contexto_semantico(pregunta)}"
     )
     mensajes = [{"role": "system", "content": sistema}]
     if historial:
@@ -49,9 +74,6 @@ def consultar_asistente(pregunta, historial=None):
         return r.json()["message"]["content"]
     except requests.exceptions.RequestException as e:
         raise ErrorIA(f"No se pudo contactar a Ollama: {e}")
-    
-    
-    import json
 
 
 def interpretar_pedido(texto):

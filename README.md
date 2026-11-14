@@ -49,3 +49,19 @@ Abrir en el navegador: http://127.0.0.1:8000/chat/ e iniciar sesión.
 
 ## Nota
 Se requiere un usuario creado en Django (`python manage.py createsuperuser`) para iniciar sesión.
+
+
+## Búsqueda semántica
+Busca productos por significado y no solo por palabras exactas: por ejemplo, "algo frío y dulce" encuentra los helados. Usa embeddings de Ollama y ChromaDB.
+
+Instalación adicional del modelo de embeddings:
+```
+ollama pull nomic-embed-text-v2-moe
+```
+
+- Endpoint: `GET /api/ia/buscar/?q=algo frio y dulce` (requiere token JWT).
+- En la primera búsqueda los productos se indexan solos. Para reindexar después de cambiar el menú:
+```
+python manage.py shell -c "from ia.semantica import indexar_productos; print(indexar_productos())"
+```
+- El asistente del chat usa esta búsqueda como contexto adicional. La disponibilidad siempre se lee de SQL Server, nunca de ChromaDB.
