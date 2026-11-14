@@ -23,7 +23,7 @@ set DB_PASSWORD=tu_contraseña
 ## Ejecución
 ```
 cd api-django
-python manage.py migrate ia
+python manage.py migrate
 python manage.py runserver
 ```
 Abrir en el navegador: http://127.0.0.1:8000/chat/ e iniciar sesión.
